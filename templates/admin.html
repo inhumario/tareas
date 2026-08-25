@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Administración{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>Usuarios ({{ usuarios|length }})</h2>
+  <div class="tabla-scroll"><table>
+    <tr><th>ID</th><th>Nombre</th><th>Email</th><th>Calendar</th><th>Tareas</th><th>Estado</th><th>Acciones</th></tr>
+    {% for u in usuarios %}
+    <tr>
+      <td>{{ u['id'] }}</td><td>{{ u['nombre'] }}</td><td>{{ u['email'] }}</td>
+      <td>{{ '✅' if u['gcal_refresh_token'] else '—' }}</td>
+      <td>{{ stats.get(u['id'], 0) }}</td>
+      <td>{{ '🟢' if u['activo'] else '🔴' }}</td>
+      <td style="white-space:nowrap">
+        <form method="post" action="/admin/toggle" style="display:inline">
+          <input type="hidden" name="uid" value="{{ u['id'] }}">
+          <button class="btn-mini">{{ 'Desactivar' if u['activo'] else 'Activar' }}</button>
+        </form>
+        <form method="post" action="/admin/borrar" style="display:inline"
+              onsubmit="return confirm('¿Borrar definitivamente a {{ u['email'] }} con todas sus tareas?')">
+          <input type="hidden" name="uid" value="{{ u['id'] }}">
+          <button class="btn-mini btn-rojo">Borrar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table></div>
+</div>
+<div class="card">
+  <h2>Dar de alta a un usuario</h2>
+  <form method="post" action="/admin/crear">
+    <div class="fila">
+      <div><label>Nombre</label><input name="nombre" required></div>
+      <div><label>Email</label><input type="email" name="email" required></div>
+    </div>
+    <label>Contraseña provisional</label><input name="password" minlength="8" required>
+    <p class="nota">Alternativa: dale el código de invitación <b>{{ alta_codigo }}</b> y que se
+    registre él en {{ base_url }}/alta.</p>
+    <button>Crear usuario</button>
+  </form>
+</div>
+{% endblock %}

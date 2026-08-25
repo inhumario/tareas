@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Alta{% endblock %}
+{% block body %}
+<div class="card estrecha">
+  <h2>Crea tu cuenta</h2>
+  <form method="post" action="/alta">
+    <label>Nombre</label><input name="nombre" required>
+    <label>Email</label><input type="email" name="email" required autocomplete="email">
+    <label>Contraseña</label><input type="password" name="password" minlength="8" required autocomplete="new-password">
+    <label>Código de invitación</label><input name="codigo" required>
+    <button>Crear cuenta</button>
+  </form>
+  <p class="nota">¿Ya tienes cuenta? <a href="/login">Entra aquí</a>.</p>
+</div>
+{% endblock %}

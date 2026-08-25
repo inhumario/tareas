@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Tareas{% endblock %} — Inhumario</title>
+<link rel="icon" type="image/png" href="/static/icon-square.png">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <a class="logo" href="/tablero"><img src="/static/logo-white.png" alt="Inhumario"></a>
+  {% if logged %}
+  <nav>
+    <a href="/tablero" {% if activa == 'tablero' %}class="activa"{% endif %}>Tablero</a>
+    <a href="/semana" {% if activa == 'semana' %}class="activa"{% endif %}>Semana</a>
+    <a href="/ajustes" {% if activa == 'ajustes' %}class="activa"{% endif %}>Ajustes</a>
+    {% if admin %}<a href="/admin">Administración</a>{% endif %}
+    <a href="/salir">Salir</a>
+  </nav>
+  {% endif %}
+</header>
+<main {% block main_attrs %}{% endblock %}>
+{% if error %}<div class="aviso-err">{{ error }}</div>{% endif %}
+{% if ok %}<div class="aviso-ok">{{ ok }}</div>{% endif %}
+{% block body %}{% endblock %}
+</main>
+{% block js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,44 @@
+{% set activa = 'semana' %}
+{% extends "base.html" %}
+{% block title %}Semana{% endblock %}
+{% block main_attrs %}class="ancha"{% endblock %}
+{% block body %}
+<div class="barra-tablero">
+  <h1 id="semana-titulo">Semana</h1>
+  <div class="barra-acciones">
+    <button class="btn-mini" id="btn-hoy" type="button">Hoy</button>
+    <button class="btn-mini" id="btn-prev" type="button">◀</button>
+    <button class="btn-mini" id="btn-next" type="button">▶</button>
+  </div>
+</div>
+<div id="aviso-semana"></div>
+<div class="semana-layout">
+  <aside class="bandeja" id="bandeja">
+    <h3>Sin planificar</h3>
+    <p class="nota">Arrastra una tarea a un hueco de la semana para reservarle tiempo
+    en tu Google Calendar.</p>
+    <div id="bandeja-lista"></div>
+  </aside>
+  <section class="calendario">
+    <div class="dias-tabs oculto" id="dias-tabs"></div>
+    <div class="rejilla-cabecera" id="rejilla-cabecera"></div>
+    <div class="rejilla-scroll">
+      <div class="rejilla" id="rejilla"></div>
+    </div>
+  </section>
+</div>
+
+<dialog id="modal-planificar">
+  <form method="dialog">
+    <h2>Planificar «<span id="p-titulo"></span>»</h2>
+    <p class="nota">Elige un hueco libre (duración: <span id="p-dur"></span>):</p>
+    <div id="p-huecos" class="huecos"></div>
+    <div class="modal-botones">
+      <button type="button" class="btn-gris" id="p-cancelar">Cancelar</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block js %}
+<script type="module" src="/static/semana.js"></script>
+{% endblock %}

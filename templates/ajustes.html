@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Ajustes{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>Google Calendar</h2>
+  {% if gcal_conectado %}
+  <div class="aviso-ok">✅ Google Calendar conectado — los bloques que planifiques en la vista
+  <a href="/semana">Semana</a> se crean como eventos reales en tu calendario.</div>
+  <form method="post" action="/ajustes/calendar" id="form-cal">
+    <label>Calendario de destino</label>
+    <select name="calendar_id" id="sel-cal"><option value="{{ user['gcal_calendar_id'] }}">{{ user['gcal_calendar_id'] }}</option></select>
+    <button>Guardar calendario</button>
+  </form>
+  <form method="post" action="/oauth/gcal/disconnect" style="margin-top:6px"
+        onsubmit="return confirm('¿Desconectar Google Calendar? Los eventos ya creados no se borran.')">
+    <button class="btn-rojo">Desconectar</button>
+  </form>
+  {% else %}
+  <p>Conecta tu cuenta de Google para hacer time blocking: arrastrar una tarea a un hueco de la
+  semana creará un evento real en tu Google Calendar.</p>
+  <p class="nota">Google mostrará una pantalla de autorización pidiendo acceso a tu calendario.
+  El permiso se guarda cifrado y puedes revocarlo aquí cuando quieras.</p>
+  <a href="/oauth/gcal/start"><button type="button">Conectar Google Calendar</button></a>
+  {% endif %}
+</div>
+<div class="card">
+  <h2>Cuenta</h2>
+  <p><b>{{ user['nombre'] or user['email'] }}</b> · {{ user['email'] }}</p>
+  <p class="nota">Zona horaria: {{ user['tz'] }}</p>
+</div>
+{% endblock %}
+{% block js %}
+{% if gcal_conectado %}
+<script>
+fetch('/api/gcal/calendars').then(r => r.json()).then(d => {
+  if (!d.calendars) return;
+  const sel = document.getElementById('sel-cal');
+  sel.innerHTML = '';
+  for (const c of d.calendars) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.nombre + (c.primario ? ' (principal)' : '');
+    if (c.id === d.actual || (c.primario && d.actual === 'primary')) o.selected = true;
+    sel.appendChild(o);
+  }
+}).catch(() => {});
+</script>
+{% endif %}
+{% endblock %}

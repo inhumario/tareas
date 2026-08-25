@@ -1,0 +1,66 @@
+{% set activa = 'tablero' %}
+{% extends "base.html" %}
+{% block title %}Tablero{% endblock %}
+{% block main_attrs %}class="ancha"{% endblock %}
+{% block body %}
+<div class="barra-tablero">
+  <h1>Tablero</h1>
+  <div class="barra-acciones">
+    <button class="btn-mini" id="btn-nueva-columna" type="button">＋ Columna</button>
+  </div>
+</div>
+<div id="aviso-tablero"></div>
+<div id="tablero" class="tablero"></div>
+
+<dialog id="modal-tarea">
+  <form id="form-tarea" method="dialog">
+    <h2 id="modal-titulo">Tarea</h2>
+    <label>Título</label>
+    <input id="t-titulo" required maxlength="200">
+    <label>Notas</label>
+    <textarea id="t-notas" rows="3"></textarea>
+    <div class="fila">
+      <div>
+        <label>Proyecto</label>
+        <select id="t-proyecto"></select>
+      </div>
+      <div>
+        <label>Duración estimada</label>
+        <select id="t-estimado">
+          <option value="15">15 min</option><option value="30" selected>30 min</option>
+          <option value="45">45 min</option><option value="60">1 h</option>
+          <option value="90">1 h 30</option><option value="120">2 h</option>
+          <option value="180">3 h</option><option value="240">4 h</option>
+        </select>
+      </div>
+    </div>
+    <div class="fila">
+      <div>
+        <label>Fecha límite</label>
+        <input type="date" id="t-limite">
+      </div>
+      <div>
+        <label>Columna</label>
+        <select id="t-columna"></select>
+      </div>
+    </div>
+    <div id="t-nuevo-proyecto" class="oculto">
+      <div class="fila">
+        <div><label>Nombre del proyecto</label><input id="t-proyecto-nombre" maxlength="60"></div>
+        <div><label>Color</label><input type="color" id="t-proyecto-color" value="#FF8080"></div>
+      </div>
+    </div>
+    <div class="modal-botones">
+      <button type="submit" id="t-guardar">Guardar</button>
+      <button type="button" class="btn-gris" id="t-cancelar">Cancelar</button>
+      <span class="separador"></span>
+      <button type="button" class="btn-gris oculto" id="t-archivar">Archivar</button>
+      <button type="button" class="btn-rojo oculto" id="t-borrar">Borrar</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block js %}
+<script src="/static/vendor/Sortable.min.js"></script>
+<script type="module" src="/static/tablero.js"></script>
+{% endblock %}

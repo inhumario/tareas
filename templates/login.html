@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Acceso{% endblock %}
+{% block body %}
+<div class="card estrecha">
+  <h2>Accede a tu tablero</h2>
+  <form method="post" action="/login">
+    <label>Email</label><input type="email" name="email" required autocomplete="email">
+    <label>Contraseña</label><input type="password" name="password" required autocomplete="current-password">
+    <button>Entrar</button>
+  </form>
+  <p class="nota">¿Aún no tienes cuenta? <a href="/alta">Date de alta</a> con tu código de invitación.</p>
+</div>
+{% endblock %}
