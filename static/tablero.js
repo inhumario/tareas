@@ -58,6 +58,13 @@ function tarjeta(t) {
     lim.textContent = '⏰ ' + Number(d) + '/' + Number(m);
     meta.appendChild(lim);
   }
+  if (t.checklist && t.checklist.length) {
+    const hechos = t.checklist.filter(i => i.hecho).length;
+    const chk = document.createElement('span');
+    chk.className = 'badge' + (hechos === t.checklist.length ? ' plan' : '');
+    chk.textContent = '☑ ' + hechos + '/' + t.checklist.length;
+    meta.appendChild(chk);
+  }
   if (t.proximo_bloque) {
     const plan = document.createElement('span');
     plan.className = 'badge plan';
@@ -168,7 +175,68 @@ const campos = {
   nuevoProyecto: document.getElementById('t-nuevo-proyecto'),
   proyectoNombre: document.getElementById('t-proyecto-nombre'),
   proyectoColor: document.getElementById('t-proyecto-color'),
+  checklist: document.getElementById('t-checklist'),
+  checkNuevo: document.getElementById('t-check-nuevo'),
 };
+
+let checklistLocal = []; // copia de trabajo del modal; para tareas nuevas aún sin id
+
+function renderChecklist() {
+  campos.checklist.innerHTML = '';
+  checklistLocal.forEach((item, idx) => {
+    const fila = document.createElement('div');
+    fila.className = 'check-item' + (item.hecho ? ' hecho' : '');
+    const caja = document.createElement('input');
+    caja.type = 'checkbox';
+    caja.checked = item.hecho;
+    caja.addEventListener('change', async () => {
+      item.hecho = caja.checked;
+      if (item.id) {
+        try { await api('PATCH', '/api/checklist/' + item.id, { hecho: item.hecho }); }
+        catch (err) { avisar('aviso-tablero', err.message); }
+      }
+      renderChecklist();
+    });
+    const texto = document.createElement('span');
+    texto.className = 'texto';
+    texto.textContent = item.texto;
+    const quitar = document.createElement('button');
+    quitar.type = 'button';
+    quitar.className = 'quitar';
+    quitar.textContent = '✕';
+    quitar.addEventListener('click', async () => {
+      if (item.id) {
+        try { await api('DELETE', '/api/checklist/' + item.id); }
+        catch (err) { avisar('aviso-tablero', err.message); return; }
+      }
+      checklistLocal.splice(idx, 1);
+      renderChecklist();
+    });
+    fila.append(caja, texto, quitar);
+    campos.checklist.appendChild(fila);
+  });
+}
+
+async function anadirCheckItem() {
+  const texto = campos.checkNuevo.value.trim();
+  if (!texto) return;
+  campos.checkNuevo.value = '';
+  if (editando) {
+    try {
+      const item = await api('POST', `/api/tasks/${editando}/checklist`, { texto });
+      checklistLocal.push(item);
+    } catch (err) { avisar('aviso-tablero', err.message); return; }
+  } else {
+    checklistLocal.push({ texto, hecho: false });
+  }
+  renderChecklist();
+  campos.checkNuevo.focus();
+}
+
+document.getElementById('t-check-add').addEventListener('click', anadirCheckItem);
+campos.checkNuevo.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') { ev.preventDefault(); anadirCheckItem(); }
+});
 
 function abrirModal(t) {
   editando = t ? t.id : null;
@@ -191,6 +259,9 @@ function abrirModal(t) {
   campos.columna.innerHTML = '';
   estado.columns.forEach(c => campos.columna.add(new Option(c.nombre, c.id)));
   campos.columna.value = String(t ? t.column_id : columnaNueva);
+  checklistLocal = t ? (t.checklist || []).map(i => ({ ...i })) : [];
+  campos.checkNuevo.value = '';
+  renderChecklist();
   document.getElementById('t-archivar').classList.toggle('oculto', !t);
   document.getElementById('t-borrar').classList.toggle('oculto', !t);
   modal.showModal();
@@ -229,7 +300,11 @@ document.getElementById('form-tarea').addEventListener('submit', async (ev) => {
         await api('POST', `/api/tasks/${editando}/move`, { column_id: colElegida, posicion: 0 });
       }
     } else {
-      await api('POST', '/api/tasks', { ...datos, column_id: colElegida });
+      const nueva = await api('POST', '/api/tasks', { ...datos, column_id: colElegida });
+      for (const item of checklistLocal) {
+        const creado = await api('POST', `/api/tasks/${nueva.id}/checklist`, { texto: item.texto });
+        if (item.hecho) await api('PATCH', '/api/checklist/' + creado.id, { hecho: true });
+      }
     }
     modal.close();
     await cargar();

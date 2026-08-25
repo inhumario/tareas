@@ -35,6 +35,8 @@ from fastapi.templating import Jinja2Templates
 
 import gcal
 
+VERSION = "0.2.0"
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
 ENCRYPT_KEY = os.environ.get("ENCRYPT_KEY", "")
@@ -151,6 +153,17 @@ def init_db() -> None:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS ix_blocks_user ON blocks(user_id, start)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS checklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                task_id INTEGER NOT NULL,
+                texto TEXT NOT NULL,
+                hecho INTEGER DEFAULT 0,
+                posicion INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_checklist_task ON checklist(task_id)")
 
 
 def user_by(field: str, value) -> sqlite3.Row | None:
@@ -248,6 +261,7 @@ def lunes_de(fecha: date) -> date:
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
+templates.env.globals["version"] = VERSION
 init_db()
 
 
@@ -267,7 +281,7 @@ def home(request: Request):
 
 @app.get("/salud")
 def salud():
-    return {"ok": True}
+    return {"ok": True, "version": VERSION}
 
 
 @app.get("/login")
@@ -345,12 +359,13 @@ def ajustes(request: Request, ok: str = "", error: str = ""):
 
 # ---------------------------------------------------------------- API tablero
 
-def _task_json(t: sqlite3.Row, bloques: dict) -> dict:
+def _task_json(t: sqlite3.Row, bloques: dict, checklist: list | None = None) -> dict:
     b = bloques.get(t["id"], {})
     return {"id": t["id"], "column_id": t["column_id"], "project_id": t["project_id"],
             "titulo": t["titulo"], "notas": t["notas"], "estimado_min": t["estimado_min"],
             "fecha_limite": t["fecha_limite"], "posicion": t["posicion"], "estado": t["estado"],
-            "n_bloques": b.get("n", 0), "proximo_bloque": b.get("proximo")}
+            "n_bloques": b.get("n", 0), "proximo_bloque": b.get("proximo"),
+            "checklist": checklist or []}
 
 
 @app.get("/api/board")
@@ -373,8 +388,13 @@ def api_board(request: Request):
                 "FROM blocks WHERE user_id=? AND estado='ok' GROUP BY task_id",
                 (ahora_iso, user["id"])):
             bloques[b["task_id"]] = {"n": b["n"], "proximo": b["proximo"]}
+        listas: dict[int, list] = {}
+        for c in conn.execute("SELECT * FROM checklist WHERE user_id=? ORDER BY task_id, posicion",
+                              (user["id"],)):
+            listas.setdefault(c["task_id"], []).append(
+                {"id": c["id"], "texto": c["texto"], "hecho": bool(c["hecho"])})
     return {"columns": columnas, "projects": proyectos,
-            "tasks": [_task_json(t, bloques) for t in tareas]}
+            "tasks": [_task_json(t, bloques, listas.get(t["id"])) for t in tareas]}
 
 
 @app.post("/api/tasks")
@@ -486,7 +506,50 @@ def api_task_borrar(tid: int, request: Request):
                     pass
     with db() as conn:
         conn.execute("DELETE FROM blocks WHERE task_id=?", (tid,))
+        conn.execute("DELETE FROM checklist WHERE task_id=?", (tid,))
         conn.execute("DELETE FROM tasks WHERE id=?", (tid,))
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- API checklist
+
+@app.post("/api/tasks/{tid}/checklist")
+async def api_check_crear(tid: int, request: Request):
+    user = api_user(request)
+    p = await request.json()
+    texto = (p.get("texto") or "").strip()
+    if not texto:
+        raise HTTPException(400, "Falta el texto")
+    with db() as conn:
+        _propia(conn, "tasks", tid, user["id"])
+        pos = conn.execute("SELECT COALESCE(MAX(posicion),-1)+1 FROM checklist WHERE task_id=?",
+                           (tid,)).fetchone()[0]
+        cur = conn.execute(
+            "INSERT INTO checklist (user_id, task_id, texto, posicion) VALUES (?,?,?,?)",
+            (user["id"], tid, texto[:300], pos))
+    return {"id": cur.lastrowid, "texto": texto[:300], "hecho": False}
+
+
+@app.patch("/api/checklist/{cid}")
+async def api_check_editar(cid: int, request: Request):
+    user = api_user(request)
+    p = await request.json()
+    with db() as conn:
+        _propia(conn, "checklist", cid, user["id"])
+        if "texto" in p and (p["texto"] or "").strip():
+            conn.execute("UPDATE checklist SET texto=? WHERE id=?", (p["texto"].strip()[:300], cid))
+        if "hecho" in p:
+            conn.execute("UPDATE checklist SET hecho=? WHERE id=?", (1 if p["hecho"] else 0, cid))
+        c = conn.execute("SELECT * FROM checklist WHERE id=?", (cid,)).fetchone()
+    return {"id": c["id"], "texto": c["texto"], "hecho": bool(c["hecho"])}
+
+
+@app.delete("/api/checklist/{cid}")
+def api_check_borrar(cid: int, request: Request):
+    user = api_user(request)
+    with db() as conn:
+        _propia(conn, "checklist", cid, user["id"])
+        conn.execute("DELETE FROM checklist WHERE id=?", (cid,))
     return {"ok": True}
 
 
@@ -935,6 +998,7 @@ def admin_borrar(request: Request, uid: int = Form(...)):
         return RedirectResponse("/admin?error=No puedes borrarte a ti mismo", status_code=302)
     with db() as conn:
         conn.execute("DELETE FROM blocks WHERE user_id=?", (uid,))
+        conn.execute("DELETE FROM checklist WHERE user_id=?", (uid,))
         conn.execute("DELETE FROM tasks WHERE user_id=?", (uid,))
         conn.execute("DELETE FROM columns WHERE user_id=?", (uid,))
         conn.execute("DELETE FROM projects WHERE user_id=?", (uid,))

@@ -55,6 +55,21 @@ th { background:var(--card); color:var(--ink); text-align:left; padding:8px; }
 td { padding:8px; border-bottom:1px solid var(--line); }
 tr:nth-child(even) td { background:var(--card); }
 
+.pie { text-align:center; font-size:.72rem; color:var(--light); padding:10px 0 18px; }
+
+/* ---------------- checklist ---------------- */
+.checklist { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto; }
+.check-item { display:flex; align-items:center; gap:8px; font-size:.88rem; padding:2px 0; }
+.check-item input[type=checkbox] { width:16px; height:16px; margin:0; accent-color:var(--ink); flex:none; }
+.check-item .texto { flex:1; }
+.check-item.hecho .texto { text-decoration:line-through; color:var(--mute); }
+.check-item .quitar { border:0; background:none; color:var(--light); cursor:pointer;
+  padding:0 4px; margin:0; font-size:.85rem; }
+.check-item .quitar:hover { color:#A03030; }
+.checklist-add { display:flex; gap:6px; margin-top:6px; }
+.checklist-add input { flex:1; padding:6px 9px; font-size:.88rem; }
+.checklist-add button { margin-top:0; }
+
 /* ---------------- barra superior de tablero/semana ---------------- */
 .barra-tablero { display:flex; justify-content:space-between; align-items:center;
                  gap:10px; margin-bottom:12px; flex-wrap:wrap; }
@@ -91,7 +106,7 @@ tr:nth-child(even) td { background:var(--card); }
 .btn-add-tarjeta:hover { background:#fff; color:var(--ink); }
 
 /* ---------------- modal ---------------- */
-dialog { border:1px solid var(--line); border-radius:14px; padding:22px;
+dialog { margin:auto; border:1px solid var(--line); border-radius:14px; padding:22px;
          width:min(480px, calc(100vw - 32px)); box-shadow:0 10px 40px rgba(17,17,17,.18); }
 dialog::backdrop { background:rgba(17,17,17,.45); }
 dialog h2 { font-size:1.05rem; margin-bottom:6px; border-bottom:2px solid var(--ink);
