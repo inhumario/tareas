@@ -176,6 +176,11 @@ function evento(ev) {
     div.appendChild(asa);
     dragBloque(div, ev);
     resizeBloque(asa, div, ev);
+    div.addEventListener('click', (e) => {
+      if (div.__arrastro || asa.__arrastro) return;
+      if (e.target.closest('.ev-borrar') || e.target.closest('.asa-resize')) return;
+      abrirMover(ev);
+    });
   } else {
     div.className = 'evento ocupado';
   }
@@ -227,7 +232,11 @@ function alPointer(el, alMover, alSoltar, umbral = 6) {
       window.removeEventListener('pointercancel', soltar);
       el.classList.remove('arrastrando');
       quitarFantasma();
-      if (activo) await alSoltar(e);
+      if (activo) {
+        el.__arrastro = true;                       // suprime el click que sigue al drag
+        setTimeout(() => { el.__arrastro = false; }, 250);
+        await alSoltar(e);
+      }
     };
     window.addEventListener('pointermove', mover, { passive: false });
     window.addEventListener('pointerup', soltar);
@@ -288,12 +297,13 @@ async function crearBloque(tarea, dia, minIni) {
 
 // ---------------- modal «Planificar…» (huecos libres) ----------------
 
-function huecosLibres(durMin) {
+function huecosLibres(durMin, excluirBlockId = null) {
   const huecos = [];
   for (const d of datos.dias) {
     if (d.fecha < datos.hoy) continue;
     const ocupados = datos.eventos
-      .filter(e => e.dia === d.fecha && e.tipo !== 'dia_completo')
+      .filter(e => e.dia === d.fecha && e.tipo !== 'dia_completo'
+                   && !(excluirBlockId && e.block_id === excluirBlockId))
       .map(e => [e.min_ini, e.min_fin]).sort((a, b) => a[0] - b[0]);
     let cursor = d.fecha === datos.hoy ? Math.max(INICIO, snap(datos.ahora_min + 14)) : INICIO;
     for (const [ini, fin] of ocupados) {
@@ -306,12 +316,12 @@ function huecosLibres(durMin) {
   return huecos.slice(0, 14);
 }
 
-function abrirPlanificar(tarea) {
-  document.getElementById('p-titulo').textContent = tarea.titulo;
-  document.getElementById('p-dur').textContent = fmtMin(tarea.estimado_min);
+function abrirSelectorHuecos({ titulo, durMin, excluirBlockId, alElegir, alQuitar }) {
+  document.getElementById('p-titulo').textContent = titulo;
+  document.getElementById('p-dur').textContent = fmtMin(durMin);
   const cont = document.getElementById('p-huecos');
   cont.innerHTML = '';
-  const huecos = huecosLibres(tarea.estimado_min);
+  const huecos = huecosLibres(durMin, excluirBlockId);
   if (!huecos.length) {
     const p = document.createElement('p');
     p.className = 'nota';
@@ -321,11 +331,42 @@ function abrirPlanificar(tarea) {
   for (const h of huecos) {
     const b = document.createElement('button');
     b.type = 'button';
-    b.textContent = `${h.label} · ${fmtHora(h.min)}–${fmtHora(h.min + tarea.estimado_min)}`;
-    b.addEventListener('click', async () => { modalPlan.close(); await crearBloque(tarea, h.dia, h.min); });
+    b.textContent = `${h.label} · ${fmtHora(h.min)}–${fmtHora(h.min + durMin)}`;
+    b.addEventListener('click', async () => { modalPlan.close(); await alElegir(h); });
     cont.appendChild(b);
   }
+  const quitar = document.getElementById('p-quitar');
+  quitar.classList.toggle('oculto', !alQuitar);
+  quitar.onclick = alQuitar ? async () => { modalPlan.close(); await alQuitar(); } : null;
   modalPlan.showModal();
+}
+
+function abrirPlanificar(tarea) {
+  abrirSelectorHuecos({
+    titulo: tarea.titulo,
+    durMin: tarea.estimado_min,
+    alElegir: (h) => crearBloque(tarea, h.dia, h.min),
+  });
+}
+
+function abrirMover(ev) {
+  const dur = ev.min_fin - ev.min_ini;
+  abrirSelectorHuecos({
+    titulo: ev.titulo,
+    durMin: dur,
+    excluirBlockId: ev.block_id,
+    alElegir: async (h) => {
+      try {
+        await api('PATCH', '/api/blocks/' + ev.block_id, { dia: h.dia, min_ini: h.min, dur_min: dur });
+        await cargar(datos.lunes);
+      } catch (err) { avisar('aviso-semana', err.message); }
+    },
+    alQuitar: async () => {
+      if (!confirm('¿Quitar este bloque? El evento se borrará de Google Calendar.')) return;
+      try { await api('DELETE', '/api/blocks/' + ev.block_id); await cargar(datos.lunes); }
+      catch (err) { avisar('aviso-semana', err.message); }
+    },
+  });
 }
 
 document.getElementById('p-cancelar').addEventListener('click', () => modalPlan.close());
