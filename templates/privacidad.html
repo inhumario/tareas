@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Política de privacidad{% endblock %}
+{% block body %}
+<div class="card">
+  <h2>Política de privacidad — Tareas (Inhumario)</h2>
+  <p class="nota">Última actualización: 25 de agosto de 2026</p>
+
+  <h3 style="margin-top:16px">Responsable</h3>
+  <p>Inhumario (Mario Cuadrado). Contacto: <a href="mailto:cuadrado.mario@aromasdete.com">cuadrado.mario@aromasdete.com</a>.</p>
+
+  <h3 style="margin-top:16px">Qué datos tratamos</h3>
+  <ul style="padding-left:20px">
+    <li><b>Datos de cuenta</b>: nombre, email y contraseña (almacenada únicamente como hash irreversible).</li>
+    <li><b>Contenido que creas</b>: tableros, columnas, proyectos, tareas, checklists y bloques de tiempo.</li>
+    <li><b>Google Calendar</b> (solo si conectas tu cuenta): un token de acceso que se guarda <b>cifrado en reposo</b> y los datos de los eventos de la ventana semanal que consultas.</li>
+  </ul>
+
+  <h3 style="margin-top:16px">Para qué usamos el acceso a Google Calendar</h3>
+  <p>Exclusivamente para las funciones que tú accionas: mostrar tus eventos como «ocupado» en la vista de semana y crear, mover o borrar los eventos correspondientes a los bloques de tiempo que planificas. No leemos calendarios con otro fin, no usamos estos datos para publicidad y no se los transferimos a terceros.</p>
+  <p>El uso de datos recibidos de las APIs de Google cumple la
+  <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noopener">Política de datos de usuario de los servicios de API de Google</a>,
+  incluidos los requisitos de uso limitado (Limited Use).</p>
+
+  <h3 style="margin-top:16px">Conservación y revocación</h3>
+  <p>Tus datos se conservan mientras mantengas tu cuenta. Puedes desconectar Google Calendar en cualquier momento desde <b>Ajustes</b> (el token se revoca y se elimina) o desde tu <a href="https://myaccount.google.com/permissions" rel="noopener">cuenta de Google</a>. Puedes pedir la eliminación completa de tu cuenta y sus datos escribiendo al contacto indicado.</p>
+
+  <h3 style="margin-top:16px">Tus derechos</h3>
+  <p>Puedes ejercer los derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad (RGPD) escribiendo a <a href="mailto:cuadrado.mario@aromasdete.com">cuadrado.mario@aromasdete.com</a>.</p>
+
+  <h3 style="margin-top:16px">Seguridad</h3>
+  <p>Todo el tráfico va cifrado por HTTPS, las contraseñas se almacenan con hash con sal (PBKDF2) y los tokens de Google se cifran en reposo. El servicio se aloja en servidores dentro de la Unión Europea.</p>
+</div>
+{% endblock %}

@@ -35,7 +35,7 @@ from fastapi.templating import Jinja2Templates
 
 import gcal
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
@@ -282,6 +282,11 @@ def home(request: Request):
 @app.get("/salud")
 def salud():
     return {"ok": True, "version": VERSION}
+
+
+@app.get("/privacidad")
+def privacidad(request: Request):
+    return render(request, "privacidad.html", user=read_session(request))
 
 
 @app.get("/login")
