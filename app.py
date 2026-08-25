@@ -259,6 +259,17 @@ def lunes_de(fecha: date) -> date:
 # ---------------------------------------------------------------- FastAPI
 
 app = FastAPI()
+
+
+@app.middleware("http")
+async def cache_estaticos(request: Request, call_next):
+    """Los estáticos se revalidan siempre (ETag→304): un deploy nunca deja JS viejo cacheado."""
+    response = await call_next(request)
+    if request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 templates.env.globals["version"] = VERSION
