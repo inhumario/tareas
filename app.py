@@ -35,7 +35,7 @@ from fastapi.templating import Jinja2Templates
 
 import gcal
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
@@ -651,6 +651,28 @@ async def api_col_editar(cid: int, request: Request):
         if "grupo" in p:
             conn.execute("UPDATE columns SET grupo=? WHERE id=?", ((p["grupo"] or "").strip(), cid))
         return dict(conn.execute("SELECT * FROM columns WHERE id=?", (cid,)).fetchone())
+
+
+@app.post("/api/columns/{cid}/vaciar")
+async def api_col_vaciar(cid: int, request: Request):
+    """Archiva de golpe lo que haya en una columna (pensado para «Hecho»).
+
+    Con `grupo` archiva solo las tarjetas de ese grupo, para que limpiar con un
+    filtro activo no se lleve por delante lo de los demás.
+    """
+    p = await request.json() if await request.body() else {}
+    user = api_user(request)
+    grupo = (p.get("grupo") or "").strip()
+    sql = "UPDATE tasks SET estado='archivada', updated=datetime('now') " \
+          "WHERE column_id=? AND user_id=? AND estado != 'archivada'"
+    valores = [cid, user["id"]]
+    if grupo:
+        sql += " AND grupo=?"
+        valores.append(grupo)
+    with db() as conn:
+        _propia(conn, "columns", cid, user["id"])
+        n = conn.execute(sql, valores).rowcount
+    return {"ok": True, "archivadas": n}
 
 
 @app.post("/api/columns/reorder")

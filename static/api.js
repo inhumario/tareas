@@ -21,7 +21,7 @@ export function avisar(contenedor, texto, esError = true) {
   d.className = esError ? 'aviso-err' : 'aviso-ok';
   d.textContent = texto;
   div.appendChild(d);
-  if (esError) setTimeout(() => { if (div.contains(d)) d.remove(); }, 6000);
+  setTimeout(() => { if (div.contains(d)) d.remove(); }, esError ? 6000 : 4000);
 }
 
 export function fmtMin(min) {

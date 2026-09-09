@@ -176,6 +176,14 @@ function render() {
     contador.className = 'contador';
     contador.textContent = tareas.length;
     cab.append(h3, contador);
+    if (col.es_hecho && tareas.length) {
+      const limpiar = document.createElement('button');
+      limpiar.className = 'btn-mini btn-gris';
+      limpiar.textContent = '🧹';
+      limpiar.title = 'Archivar lo que hay en esta columna';
+      limpiar.addEventListener('click', () => vaciarColumna(col, tareas.length));
+      cab.appendChild(limpiar);
+    }
     if (!tareas.length && !col.es_hecho && !filtro) {
       const x = document.createElement('button');
       x.className = 'btn-mini btn-gris';
@@ -229,6 +237,16 @@ function posicionReal(ev) {
   if (!previa) return 0;
   const t = estado.tasks.find(x => x.id === Number(previa.dataset.id));
   return t ? t.posicion + 1 : ev.newIndex;
+}
+
+async function vaciarColumna(col, n) {
+  const deQuien = filtro ? ` de ${filtro}` : '';
+  if (!confirm(`¿Archivar las ${n} tarjetas${deQuien} de «${col.nombre}»?\n\nSe quitan del tablero; no se borran.`)) return;
+  try {
+    const r = await api('POST', `/api/columns/${col.id}/vaciar`, { grupo: filtro });
+    await cargar();
+    avisar('aviso-tablero', `${r.archivadas} tarjetas archivadas.`, false);
+  } catch (err) { avisar('aviso-tablero', err.message); }
 }
 
 async function borrarColumna(col) {
