@@ -75,6 +75,17 @@ tr:nth-child(even) td { background:var(--card); }
                  gap:10px; margin-bottom:12px; flex-wrap:wrap; }
 .barra-acciones { display:flex; gap:8px; }
 
+/* ---------------- filtros por grupo ---------------- */
+.filtros { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+.btn-filtro { background:#fff; color:var(--ink); border:1px solid var(--line);
+  border-radius:20px; padding:6px 14px; font-size:.82rem; font-weight:600;
+  margin:0; cursor:pointer; }
+.btn-filtro:hover { background:var(--card); }
+.btn-filtro.activo { background:var(--ink); color:#fff; border-color:var(--ink); }
+.btn-filtro.activo:hover { background:var(--ink-soft); }
+.btn-filtro.suave { color:var(--mute); font-weight:400; }
+.pista { font-weight:400; color:var(--mute); font-size:.78rem; }
+
 /* ---------------- kanban ---------------- */
 .tablero { display:flex; gap:14px; align-items:flex-start; overflow-x:auto;
            padding-bottom:20px; -webkit-overflow-scrolling:touch; }
@@ -90,9 +101,16 @@ tr:nth-child(even) td { background:var(--card); }
            border-radius:10px; padding:9px 11px; cursor:grab; font-size:.9rem;
            box-shadow:0 1px 2px rgba(17,17,17,.05); }
 .tarjeta:active { cursor:grabbing; }
-.tarjeta .titulo { font-weight:600; line-height:1.3; }
+.tarjeta-cab { display:flex; align-items:flex-start; gap:8px; }
+.tarjeta .titulo { font-weight:600; line-height:1.3; flex:1; }
+.tarjeta .marca { flex:none; width:18px; height:18px; margin:1px 0 0; padding:0;
+  border:1.5px solid var(--light); border-radius:5px; background:#fff; color:#fff;
+  font-size:.72rem; line-height:1; display:flex; align-items:center;
+  justify-content:center; cursor:pointer; }
+.tarjeta .marca:hover { border-color:var(--ink); background:var(--card); }
+.tarjeta .marca.ok { background:var(--ink); border-color:var(--ink); color:#fff; }
 .tarjeta .meta { display:flex; gap:8px; flex-wrap:wrap; margin-top:5px; font-size:.72rem;
-                 color:var(--mute); align-items:center; }
+                 color:var(--mute); align-items:center; margin-left:26px; }
 .chip { display:inline-flex; align-items:center; gap:4px; }
 .chip .punto { width:9px; height:9px; border-radius:50%; display:inline-block; }
 .badge { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:0 6px; }
@@ -100,6 +118,7 @@ tr:nth-child(even) td { background:var(--card); }
 .badge.plan { background:#EFF7F1; border-color:#B9D9C3; }
 .tarjeta.hecha { opacity:.55; }
 .tarjeta.hecha .titulo { text-decoration:line-through; }
+.tablero.filtrado .columna { width:340px; min-width:340px; }
 .sortable-ghost { opacity:.4; border-style:dashed; }
 .btn-add-tarjeta { width:100%; margin-top:8px; background:transparent; color:var(--mute);
   border:1px dashed var(--light); font-weight:400; padding:7px; }
@@ -178,7 +197,9 @@ dialog h2 { font-size:1.05rem; margin-bottom:6px; border-bottom:2px solid var(--
 @media (max-width: 860px) {
   main.ancha { padding:0 10px 24px; }
   .tablero { scroll-snap-type:x mandatory; gap:10px; }
-  .columna { width:85vw; min-width:85vw; scroll-snap-align:center; }
+  .columna, .tablero.filtrado .columna { width:85vw; min-width:85vw; scroll-snap-align:center; }
+  .filtros { overflow-x:auto; flex-wrap:nowrap; padding-bottom:4px; }
+  .btn-filtro { white-space:nowrap; }
   .semana-layout { grid-template-columns:1fr; }
   .bandeja { position:static; }
   #bandeja-lista { flex-direction:row; overflow-x:auto; padding-bottom:6px; }

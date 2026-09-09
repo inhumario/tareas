@@ -35,7 +35,7 @@ from fastapi.templating import Jinja2Templates
 
 import gcal
 
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
@@ -164,6 +164,23 @@ def init_db() -> None:
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS ix_checklist_task ON checklist(task_id)")
+        migrar(conn)
+
+
+def migrar(conn: sqlite3.Connection) -> None:
+    """Migraciones idempotentes sobre tablas ya creadas."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(columns)")}
+    if "grupo" not in cols:
+        # Grupo = etiqueta que agrupa columnas de un mismo asunto (p. ej. una
+        # persona con la que hay ida y vuelta). El tablero saca un botón de
+        # filtro por cada grupo distinto.
+        conn.execute("ALTER TABLE columns ADD COLUMN grupo TEXT DEFAULT ''")
+    tcols = {r["name"] for r in conn.execute("PRAGMA table_info(tasks)")}
+    if "grupo" not in tcols:
+        # Se sella al entrar la tarea en una columna con grupo y sobrevive al
+        # paso por «Hecho», que es lo que permite filtrar el histórico.
+        conn.execute("ALTER TABLE tasks ADD COLUMN grupo TEXT DEFAULT ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS ix_tasks_grupo ON tasks(user_id, grupo)")
 
 
 def user_by(field: str, value) -> sqlite3.Row | None:
@@ -380,14 +397,17 @@ def _task_json(t: sqlite3.Row, bloques: dict, checklist: list | None = None) -> 
     return {"id": t["id"], "column_id": t["column_id"], "project_id": t["project_id"],
             "titulo": t["titulo"], "notas": t["notas"], "estimado_min": t["estimado_min"],
             "fecha_limite": t["fecha_limite"], "posicion": t["posicion"], "estado": t["estado"],
+            "hecha_en": t["hecha_en"], "grupo": t["grupo"] or "",
             "n_bloques": b.get("n", 0), "proximo_bloque": b.get("proximo"),
             "checklist": checklist or []}
 
 
 @app.get("/api/board")
-def api_board(request: Request):
+def api_board(request: Request, dias: int = 14):
+    """`dias` = cuánto histórico de tareas hechas se devuelve (14 por defecto)."""
     user = api_user(request)
-    hace_2sem = (datetime.now(TZ) - timedelta(days=14)).strftime("%Y-%m-%d %H:%M:%S")
+    dias = max(1, min(int(dias or 14), 3650))
+    desde = (datetime.now(TZ) - timedelta(days=dias)).strftime("%Y-%m-%d %H:%M:%S")
     ahora_iso = datetime.now(TZ).isoformat()
     with db() as conn:
         columnas = [dict(r) for r in conn.execute(
@@ -397,7 +417,7 @@ def api_board(request: Request):
         tareas = conn.execute(
             "SELECT * FROM tasks WHERE user_id=? AND estado != 'archivada' "
             "AND (estado='abierta' OR hecha_en > ?) ORDER BY column_id, posicion",
-            (user["id"], hace_2sem)).fetchall()
+            (user["id"], desde)).fetchall()
         bloques: dict[int, dict] = {}
         for b in conn.execute(
                 "SELECT task_id, COUNT(*) n, MIN(CASE WHEN start > ? THEN start END) proximo "
@@ -421,7 +441,7 @@ async def api_task_crear(request: Request):
     if not titulo:
         raise HTTPException(400, "Falta el título")
     with db() as conn:
-        col = conn.execute("SELECT id FROM columns WHERE id=? AND user_id=?",
+        col = conn.execute("SELECT * FROM columns WHERE id=? AND user_id=?",
                            (p.get("column_id"), user["id"])).fetchone()
         if not col:
             raise HTTPException(400, "Columna no válida")
@@ -429,11 +449,19 @@ async def api_task_crear(request: Request):
                            (col["id"],)).fetchone()[0]
         cur = conn.execute(
             "INSERT INTO tasks (user_id, column_id, project_id, titulo, notas, estimado_min, "
-            "fecha_limite, posicion) VALUES (?,?,?,?,?,?,?,?)",
+            "fecha_limite, posicion, grupo) VALUES (?,?,?,?,?,?,?,?,?)",
             (user["id"], col["id"], p.get("project_id"), titulo, p.get("notas", ""),
-             int(p.get("estimado_min") or 30), p.get("fecha_limite") or None, pos))
+             int(p.get("estimado_min") or 30), p.get("fecha_limite") or None, pos,
+             col["grupo"] or ""))
         t = conn.execute("SELECT * FROM tasks WHERE id=?", (cur.lastrowid,)).fetchone()
     return _task_json(t, {})
+
+
+def _grupo_al_mover(col: sqlite3.Row, actual: str) -> str:
+    """La columna destino manda, salvo «Hecho», que conserva el grupo de origen."""
+    if col["grupo"]:
+        return col["grupo"]
+    return actual if col["es_hecho"] else ""
 
 
 def _propia(conn, tabla: str, id_: int, user_id: int) -> sqlite3.Row:
@@ -476,8 +504,10 @@ async def api_task_mover(tid: int, request: Request):
     user = api_user(request)
     p = await request.json()
     with db() as conn:
-        _propia(conn, "tasks", tid, user["id"])
+        tarea = _propia(conn, "tasks", tid, user["id"])
         col = _propia(conn, "columns", int(p["column_id"]), user["id"])
+        conn.execute("UPDATE tasks SET grupo=? WHERE id=?",
+                     (_grupo_al_mover(col, tarea["grupo"] or ""), tid))
         orden = [r["id"] for r in conn.execute(
             "SELECT id FROM tasks WHERE column_id=? AND estado != 'archivada' AND id != ? "
             "ORDER BY posicion", (col["id"], tid))]
@@ -491,6 +521,28 @@ async def api_task_mover(tid: int, request: Request):
         else:
             conn.execute("UPDATE tasks SET estado='abierta', hecha_en=NULL, "
                          "updated=datetime('now') WHERE id=? AND estado='hecha'", (tid,))
+        t = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
+    return _task_json(t, {})
+
+
+@app.post("/api/tasks/{tid}/hecha")
+async def api_task_hecha(tid: int, request: Request):
+    """Marca (o reabre) una tarea sin sacarla de su columna.
+
+    En las columnas de seguimiento —lo pedido a alguien, lo que alguien nos
+    pide— interesa que lo hecho se quede donde está para poder repasarlo.
+    """
+    user = api_user(request)
+    p = await request.json()
+    hecho = bool(p.get("hecho", True))
+    with db() as conn:
+        _propia(conn, "tasks", tid, user["id"])
+        if hecho:
+            conn.execute("UPDATE tasks SET estado='hecha', hecha_en=?, updated=datetime('now') "
+                         "WHERE id=?", (datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"), tid))
+        else:
+            conn.execute("UPDATE tasks SET estado='abierta', hecha_en=NULL, "
+                         "updated=datetime('now') WHERE id=?", (tid,))
         t = conn.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone()
     return _task_json(t, {})
 
@@ -581,8 +633,8 @@ async def api_col_crear(request: Request):
     with db() as conn:
         pos = conn.execute("SELECT COALESCE(MAX(posicion),-1)+1 FROM columns WHERE user_id=?",
                            (user["id"],)).fetchone()[0]
-        cur = conn.execute("INSERT INTO columns (user_id, nombre, posicion) VALUES (?,?,?)",
-                           (user["id"], nombre, pos))
+        cur = conn.execute("INSERT INTO columns (user_id, nombre, posicion, grupo) VALUES (?,?,?,?)",
+                           (user["id"], nombre, pos, (p.get("grupo") or "").strip()))
         return dict(conn.execute("SELECT * FROM columns WHERE id=?", (cur.lastrowid,)).fetchone())
 
 
@@ -596,6 +648,8 @@ async def api_col_editar(cid: int, request: Request):
             conn.execute("UPDATE columns SET nombre=? WHERE id=?", (p["nombre"].strip(), cid))
         if "es_hecho" in p:
             conn.execute("UPDATE columns SET es_hecho=? WHERE id=?", (1 if p["es_hecho"] else 0, cid))
+        if "grupo" in p:
+            conn.execute("UPDATE columns SET grupo=? WHERE id=?", ((p["grupo"] or "").strip(), cid))
         return dict(conn.execute("SELECT * FROM columns WHERE id=?", (cid,)).fetchone())
 
 

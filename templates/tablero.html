@@ -9,8 +9,24 @@
     <button class="btn-mini" id="btn-nueva-columna" type="button">＋ Columna</button>
   </div>
 </div>
+<div class="filtros" id="filtros"></div>
 <div id="aviso-tablero"></div>
 <div id="tablero" class="tablero"></div>
+
+<dialog id="modal-columna">
+  <form id="form-columna" method="dialog">
+    <h2 id="modal-col-titulo">Columna</h2>
+    <label>Nombre</label>
+    <input id="c-nombre" required maxlength="60">
+    <label>Grupo <span class="pista">(opcional — agrupa columnas de un mismo asunto y crea su botón de filtro)</span></label>
+    <input id="c-grupo" maxlength="40" placeholder="Ej.: Chus" list="grupos-existentes">
+    <datalist id="grupos-existentes"></datalist>
+    <div class="modal-botones">
+      <button type="submit">Guardar</button>
+      <button type="button" class="btn-gris" id="c-cancelar">Cancelar</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="modal-tarea">
   <form id="form-tarea" method="dialog">

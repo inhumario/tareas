@@ -7,15 +7,64 @@ let estado = { columns: [], tasks: [], projects: [] };
 let editando = null;          // id de la tarea abierta en el modal, o null si es nueva
 let columnaNueva = null;      // columna destino al crear desde «＋ Añadir tarea»
 let sortables = [];
+let filtro = localStorage.getItem('tablero_filtro') || '';   // grupo activo ('' = todo)
+let dias = 14;                // histórico de hechas que pide el board
 
 async function cargar() {
-  estado = await api('GET', '/api/board');
+  estado = await api('GET', '/api/board?dias=' + dias);
+  if (filtro && !grupos().includes(filtro)) filtro = '';
+  renderFiltros();
   render();
   const hash = window.location.hash.match(/^#task-(\d+)$/);
   if (hash) {
     const t = estado.tasks.find(x => x.id === Number(hash[1]));
     if (t) abrirModal(t);
     history.replaceState(null, '', '/tablero');
+  }
+}
+
+function grupos() {
+  return [...new Set(estado.columns.map(c => c.grupo).filter(Boolean))];
+}
+
+function ponerFiltro(g) {
+  filtro = g;
+  localStorage.setItem('tablero_filtro', g);
+  if (!g) dias = 14;
+  renderFiltros();
+  render();
+}
+
+function renderFiltros() {
+  const cont = document.getElementById('filtros');
+  cont.innerHTML = '';
+  const lista = grupos();
+  if (!lista.length) return;
+  const todo = document.createElement('button');
+  todo.type = 'button';
+  todo.className = 'btn-filtro' + (filtro ? '' : ' activo');
+  todo.textContent = 'Todo';
+  todo.addEventListener('click', () => ponerFiltro(''));
+  cont.appendChild(todo);
+  for (const g of lista) {
+    const abiertas = estado.tasks.filter(t => t.grupo === g && t.estado === 'abierta').length;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn-filtro' + (filtro === g ? ' activo' : '');
+    b.textContent = '👤 ' + g + ' · ' + abiertas;
+    b.addEventListener('click', () => ponerFiltro(filtro === g ? '' : g));
+    cont.appendChild(b);
+  }
+  if (filtro) {
+    const hist = document.createElement('button');
+    hist.type = 'button';
+    hist.className = 'btn-filtro suave';
+    hist.textContent = dias > 14 ? '↺ Solo lo reciente' : '🕗 Ver todo lo hecho';
+    hist.addEventListener('click', async () => {
+      dias = dias > 14 ? 14 : 3650;
+      await cargar();
+    });
+    cont.appendChild(hist);
   }
 }
 
@@ -30,10 +79,25 @@ function tarjeta(t) {
   const p = proyectoDe(t);
   div.style.borderLeftColor = p ? p.color : 'var(--light)';
 
+  const cab = document.createElement('div');
+  cab.className = 'tarjeta-cab';
+  const marca = document.createElement('button');
+  marca.type = 'button';
+  marca.className = 'marca' + (t.estado === 'hecha' ? ' ok' : '');
+  marca.textContent = t.estado === 'hecha' ? '✓' : '';
+  marca.title = t.estado === 'hecha' ? 'Reabrir' : 'Marcar como hecha (se queda en su columna)';
+  marca.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    try {
+      await api('POST', `/api/tasks/${t.id}/hecha`, { hecho: t.estado !== 'hecha' });
+      await cargar();
+    } catch (err) { avisar('aviso-tablero', err.message); }
+  });
   const titulo = document.createElement('div');
   titulo.className = 'titulo';
   titulo.textContent = t.titulo;
-  div.appendChild(titulo);
+  cab.append(marca, titulo);
+  div.appendChild(cab);
 
   const meta = document.createElement('div');
   meta.className = 'meta';
@@ -65,6 +129,13 @@ function tarjeta(t) {
     chk.textContent = '☑ ' + hechos + '/' + t.checklist.length;
     meta.appendChild(chk);
   }
+  if (t.estado === 'hecha' && t.hecha_en) {
+    const h = document.createElement('span');
+    h.className = 'badge';
+    const [a, m, d] = t.hecha_en.slice(0, 10).split('-');
+    h.textContent = '✓ ' + Number(d) + '/' + Number(m);
+    meta.appendChild(h);
+  }
   if (t.proximo_bloque) {
     const plan = document.createElement('span');
     plan.className = 'badge plan';
@@ -82,8 +153,14 @@ function render() {
   sortables.forEach(s => s.destroy());
   sortables = [];
   cont.innerHTML = '';
-  for (const col of estado.columns) {
-    const tareas = estado.tasks.filter(t => t.column_id === col.id);
+  // Con un grupo activo se ven sus columnas y «Hecho» (donde caen las que se
+  // arrastran allí sin perder el grupo), y solo las tarjetas de ese grupo.
+  const columnas = filtro
+    ? estado.columns.filter(c => c.grupo === filtro || c.es_hecho)
+    : estado.columns;
+  cont.classList.toggle('filtrado', !!filtro);
+  for (const col of columnas) {
+    const tareas = estado.tasks.filter(t => t.column_id === col.id && (!filtro || t.grupo === filtro));
     const divCol = document.createElement('div');
     divCol.className = 'columna';
     divCol.dataset.id = col.id;
@@ -92,13 +169,14 @@ function render() {
     cab.className = 'columna-cab';
     const h3 = document.createElement('h3');
     h3.textContent = col.nombre + (col.es_hecho ? ' ✓' : '');
-    h3.title = 'Doble clic para renombrar';
-    h3.addEventListener('dblclick', () => renombrarColumna(col));
+    if (col.grupo && !filtro) h3.textContent += ' · ' + col.grupo;
+    h3.title = 'Doble clic para editar la columna';
+    h3.addEventListener('dblclick', () => abrirModalColumna(col));
     const contador = document.createElement('span');
     contador.className = 'contador';
     contador.textContent = tareas.length;
     cab.append(h3, contador);
-    if (!tareas.length && !col.es_hecho) {
+    if (!tareas.length && !col.es_hecho && !filtro) {
       const x = document.createElement('button');
       x.className = 'btn-mini btn-gris';
       x.textContent = '✕';
@@ -128,7 +206,7 @@ function render() {
         const id = Number(ev.item.dataset.id);
         const colDestino = Number(ev.to.dataset.col);
         try {
-          await api('POST', `/api/tasks/${id}/move`, { column_id: colDestino, posicion: ev.newIndex });
+          await api('POST', `/api/tasks/${id}/move`, { column_id: colDestino, posicion: posicionReal(ev) });
           await cargar();
         } catch (err) { avisar('aviso-tablero', err.message); cargar(); }
       },
@@ -143,11 +221,14 @@ function render() {
   }));
 }
 
-async function renombrarColumna(col) {
-  const nombre = prompt('Nombre de la columna:', col.nombre);
-  if (!nombre || nombre.trim() === col.nombre) return;
-  try { await api('PATCH', `/api/columns/${col.id}`, { nombre }); await cargar(); }
-  catch (err) { avisar('aviso-tablero', err.message); }
+function posicionReal(ev) {
+  // Sin filtro, el índice visible es el real. Con filtro, se cuela justo detrás
+  // de la tarjeta anterior visible, en la posición que esa ocupa de verdad.
+  if (!filtro) return ev.newIndex;
+  const previa = ev.item.previousElementSibling;
+  if (!previa) return 0;
+  const t = estado.tasks.find(x => x.id === Number(previa.dataset.id));
+  return t ? t.posicion + 1 : ev.newIndex;
 }
 
 async function borrarColumna(col) {
@@ -156,12 +237,39 @@ async function borrarColumna(col) {
   catch (err) { avisar('aviso-tablero', err.message); }
 }
 
-document.getElementById('btn-nueva-columna').addEventListener('click', async () => {
-  const nombre = prompt('Nombre de la nueva columna:');
-  if (!nombre || !nombre.trim()) return;
-  try { await api('POST', '/api/columns', { nombre }); await cargar(); }
-  catch (err) { avisar('aviso-tablero', err.message); }
+const modalCol = document.getElementById('modal-columna');
+let columnaEditando = null;
+
+function abrirModalColumna(col) {
+  columnaEditando = col;
+  document.getElementById('modal-col-titulo').textContent = col ? 'Editar columna' : 'Nueva columna';
+  document.getElementById('c-nombre').value = col ? col.nombre : '';
+  document.getElementById('c-grupo').value = col ? (col.grupo || '') : filtro;
+  const dl = document.getElementById('grupos-existentes');
+  dl.innerHTML = '';
+  grupos().forEach(g => dl.appendChild(new Option(g, g)));
+  modalCol.showModal();
+  document.getElementById('c-nombre').focus();
+}
+
+document.getElementById('c-cancelar').addEventListener('click', () => modalCol.close());
+
+document.getElementById('form-columna').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const datos = {
+    nombre: document.getElementById('c-nombre').value.trim(),
+    grupo: document.getElementById('c-grupo').value.trim(),
+  };
+  if (!datos.nombre) return;
+  try {
+    if (columnaEditando) await api('PATCH', `/api/columns/${columnaEditando.id}`, datos);
+    else await api('POST', '/api/columns', datos);
+    modalCol.close();
+    await cargar();
+  } catch (err) { avisar('aviso-tablero', err.message); }
 });
+
+document.getElementById('btn-nueva-columna').addEventListener('click', () => abrirModalColumna(null));
 
 // ---------------- modal de tarea ----------------
 
