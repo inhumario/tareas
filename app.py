@@ -35,7 +35,7 @@ from fastapi.templating import Jinja2Templates
 
 import gcal
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SECRET_KEY = os.environ.get("SECRET_KEY", "")

@@ -43,7 +43,7 @@ function renderFiltros() {
   const todo = document.createElement('button');
   todo.type = 'button';
   todo.className = 'btn-filtro' + (filtro ? '' : ' activo');
-  todo.textContent = 'Todo';
+  todo.textContent = 'Lo mío';
   todo.addEventListener('click', () => ponerFiltro(''));
   cont.appendChild(todo);
   for (const g of lista) {
@@ -157,7 +157,7 @@ function render() {
   // arrastran allí sin perder el grupo), y solo las tarjetas de ese grupo.
   const columnas = filtro
     ? estado.columns.filter(c => c.grupo === filtro || c.es_hecho)
-    : estado.columns;
+    : estado.columns.filter(c => !c.grupo);   // lo de cada grupo, solo tras su botón
   cont.classList.toggle('filtrado', !!filtro);
   for (const col of columnas) {
     const tareas = estado.tasks.filter(t => t.column_id === col.id && (!filtro || t.grupo === filtro));
